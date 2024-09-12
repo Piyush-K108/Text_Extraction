@@ -1,0 +1,17 @@
+hard limit of 512MB per file.
+
+Up to 20 files per GPT for the lifetime of that GPT
+
+For CSV files or spreadsheets, the file size cannot exceed approximately 50MB, depending on the size of each row.
+
+For images, there's a limit of 20MB per image.
+
+
+Each end-user is capped at 10GB.
+
+Each organization is capped at 100GB.
+
+
+
+
+Thred 60 days retention
