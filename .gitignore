@@ -1,3 +1,13 @@
 .env
 data
-/Test.ipynb
+Test.ipynb
+Json_output.csv
+output_file.txt
+file_ids.txt
+error_log.txt
+attachments
+*.txt
+output
+
+
+__pycache__
