@@ -3,6 +3,18 @@ import gradio as gr
 import email
 from email import policy
 import os
+import csv
+
+def csv_to_txt(csv_file, txt_file):
+    """Convert a CSV file to a TXT file."""
+    try:
+        with open(csv_file, 'r', encoding='utf-8') as csvf, open(txt_file, 'w', encoding='utf-8') as txtf:
+            reader = csv.reader(csvf)
+            for row in reader:
+                txtf.write("\t".join(row) + "\n")  # Write the row values separated by tabs or spaces
+        print(f"Converted {csv_file} to {txt_file}")
+    except Exception as e:
+        print(f"Error converting CSV to TXT: {str(e)}")
 
 
 def get_attachments_from_eml(basename, eml_file):
@@ -23,16 +35,26 @@ def get_attachments_from_eml(basename, eml_file):
             filename = part.get_filename()
             if filename:
                 # Prefix the basename to the filename to avoid naming conflicts
-                full_filename = f"{basename}_{filename}"
+                name, ext = os.path.splitext(filename)
+                ext = ext.lower()
+                
+                full_filename = f"{basename}_{name}{ext}"
                 attachment_path = os.path.join(output_dir, full_filename)
 
                 # Save the attachment
                 with open(attachment_path, 'wb') as fp:
                     fp.write(part.get_payload(decode=True))
 
-                # Append the attachment path to the list
-                attachment_paths.append(attachment_path)
-                print(f"Saved attachment: {attachment_path}")
+                if ext == '.csv':
+                    txt_filename = os.path.splitext(full_filename)[0] + '.txt'
+                    txt_path = os.path.join(output_dir, txt_filename)
+                    csv_to_txt(attachment_path, txt_path)
+                    attachment_paths.append(txt_path)
+                    print(f"Saved and converted CSV to TXT: {txt_path}")
+                else:
+                    attachment_paths.append(attachment_path)
+                    print(f"Saved attachment: {attachment_path}")
+
 
     # Return the list of attachment paths
     return attachment_paths
@@ -72,7 +94,7 @@ def get_text_from_eml(basename, eml):
 
 def gradio_interface(files):
     result_json = []
-
+    eml_result = []
     try:
 
         for file in files:
@@ -82,12 +104,16 @@ def gradio_interface(files):
             basename = os.path.splitext(file_name)[0]
 
             if extension == 'eml':
-                eml_text_path = get_text_from_eml(basename, file.name)
-                # eml_files = get_attachments_from_eml(basename, file.name)
+                # eml_text_path = get_text_from_eml(basename, file.name)
+                eml_files = get_attachments_from_eml(basename, file.name)
+                  
+                if eml_files:
+                    result2 = process_files(eml_files)
+                    eml_result.append(result2)
 
-                # if eml_files:process_files(eml_files)
-
-                result = process_files([eml_text_path])
+                # result2 = process_files([eml_text_path])
+                eml_result.append(result2)
+                result = eml_result
             else:
 
                 result = process_files([file.name])

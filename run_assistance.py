@@ -1,8 +1,9 @@
+import json
 from openai import OpenAI
 import os
 import pandas as pd
 from dotenv import load_dotenv
-
+import re
 load_dotenv()
 
 def json_to_csv(json_data, vector_id, thread_id,run_id, output_file='Json_output.csv'):
@@ -81,7 +82,7 @@ def process_files(file_paths):
         print(f'Your thread ID is: {thread.id}\n')
 
         # Send the user message to extract JSON data from the file
-        text = 'Give me json extracted from file'
+        text = ''
         messages = client.beta.threads.messages.create(
             thread_id=thread.id,
             role='user',
@@ -105,17 +106,21 @@ def process_files(file_paths):
             messages_content = messages[0].content[0].text
 
             # Print the extracted JSON content
-            print("Extracted JSON content:\n", messages_content)
 
-            # Save the extracted JSON to CSV
+            
             for content_block in messages[0].content:
                 if hasattr(content_block, 'text') and hasattr(content_block.text, 'value'):
                     messages_content = content_block.text.value
                     break  # Exit the loop once the text is found
 
+            print("Extracted JSON content:\n", messages_content)
 
-            cleaned_json_string = messages_content.strip("```json").strip()
-            json_data = eval(cleaned_json_string)  
+            try:
+                cleaned_json_string = messages_content.strip("```json").strip()
+                json_data = eval(cleaned_json_string) 
+            except Exception as e:
+                print("Error",e)
+                json_data = message_to_json(messages_content)
 
             json_data['token_usage'] = {
                 "prompt_tokens": token_usage.prompt_tokens,
@@ -142,3 +147,26 @@ def process_files(file_paths):
         return None
 
 
+
+
+
+def message_to_json(messages_content):
+    json_match = re.search(r"```json(.*?)```", messages_content, re.DOTALL)
+
+    if json_match:
+        json_string = json_match.group(1).strip() 
+        json_string = json_string.replace('null', 'None')
+
+        # Optionally, you can load this string into a dictionary
+        print(json_string)
+        try:
+            json_data = eval(json_string)  
+        except Exception as e:
+            try:
+                json_data = json.loads(json_string)
+                print(f"Error parsing JSON: {str(e)}")
+            except:
+                print(f"Error parsing JSON2: {str(e)}")
+    else:
+        print("No JSON found in the content.")
+    return json_data
