@@ -1,20 +1,19 @@
 import json
-from run_assistance import json_to_csv, process_files, save_output_to_txt, process_code_file,process_image_file
+from run_assistance import json_to_csv, process_files, save_output_to_txt, process_code_file, process_image_file
 import gradio as gr
 import email
 from email import policy
 import os
 import csv
 import pandas as pd
-
-
-import pandas as pd
 import json
 import numpy as np
 
-def table_to_json(input_file, json_file='output.json'):
+
+def table_to_json(input_file):
     try:
         print(input_file)
+
         # Check file extension and read accordingly
         if input_file.endswith('.csv'):
             df = pd.read_csv(input_file)
@@ -29,14 +28,20 @@ def table_to_json(input_file, json_file='output.json'):
         # Convert DataFrame to JSON format
         json_data = df.to_dict(orient='records')
 
+        # Generate a unique name for the output JSON file based on the input file name
+        base_name = os.path.splitext(os.path.basename(input_file))[0]
+        json_file = f'{base_name}_output.json'
+
         # Write JSON data to a file
         with open(json_file, 'w') as f:
             json.dump(json_data, f, indent=4)
 
+        print(f"JSON file created: {json_file}")
         return json_data
 
     except Exception as e:
         return f"Error occurred: {str(e)}"
+
 
 def csv_to_txt(csv_file, txt_file):
     """Convert a CSV file to a TXT file."""
@@ -160,7 +165,7 @@ def gradio_interface(files):
             basename = os.path.splitext(file_name)[0]
 
             if extension == 'eml':
-                # eml_text_path = get_text_from_eml(basename, file.name)
+                eml_text_path = get_text_from_eml(basename, file.name)
                 eml_files = get_attachments_from_eml(basename, file.name)
 
                 if eml_files:
@@ -178,13 +183,13 @@ def gradio_interface(files):
                             print("hii2")
                             result2 = table_to_json(attachment)
                             eml_result.append(result2)
-                        elif att_extension=='png' or att_extension=='jpeg':
+                        elif att_extension == 'png' or att_extension == 'jpeg':
                             result = process_image_file(attachment)
-                        # else:
-                        #     result2 = process_files(eml_files)
-                        #     eml_result.append(result2)
+                        else:
+                            result2 = process_files(eml_files)
+                            eml_result.append(result2)
 
-                # result2 = process_files([eml_text_path])
+                result2 = process_files([eml_text_path])
                 eml_result.append(result2)
                 result = eml_result
             elif extension == 'csv' or extension in ['xls', 'xlsx']:
@@ -192,7 +197,7 @@ def gradio_interface(files):
 
             elif extension == 'png' or extension == 'jpg' or extension == 'jpeg':
                 result = process_image_file(file.name)
-                
+
             else:
                 result = process_files(file.name)
             if result is not None:
@@ -216,5 +221,3 @@ demo = gr.Interface(
 
 if __name__ == "__main__":
     demo.launch()
-
-

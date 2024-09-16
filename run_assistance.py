@@ -261,13 +261,10 @@ def process_code_file(file_path, file_name):
 
 
 def process_image_file(file_path):
-    
-
+    print("Hii Image")
     openai_key = os.getenv('API_KEY')
-    
-
     # Initialize OpenAI client
-    client = OpenAI(api_key=openai_key)
+    client = OpenAI(api_key=openai_key) 
     try:
         response = client.chat.completions.create(
             model="gpt-4o",
