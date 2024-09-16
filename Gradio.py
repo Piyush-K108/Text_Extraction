@@ -1,3 +1,4 @@
+import openpyxl
 import json
 from run_assistance import json_to_csv, process_files, save_output_to_txt, process_code_file, process_image_file
 import gradio as gr
@@ -57,18 +58,39 @@ def csv_to_txt(csv_file, txt_file):
 
 
 def excel_to_txt(excel_file, txt_file):
-    """Convert an Excel file to a TXT file."""
+    """Convert an Excel file to a TXT file without using pandas."""
     try:
-        # Read the Excel file using pandas
-        # Read all sheets into a dictionary
-        df = pd.read_excel(excel_file, sheet_name=None)
+        # Load the Excel workbook
+        workbook = openpyxl.load_workbook(excel_file)
+
+        # Open the output TXT file for writing
         with open(txt_file, 'w', encoding='utf-8') as txtf:
-            for sheet_name, data in df.items():
+            # Iterate over each sheet in the workbook
+            for sheet_name in workbook.sheetnames:
+                # Get the current sheet
+                sheet = workbook[sheet_name]
+
+                # Write the sheet name to the text file
                 txtf.write(f"Sheet: {sheet_name}\n")
-                data.to_csv(txtf, sep='\t', index=False,
-                            header=True)  # Tab-separated values
-                txtf.write("\n\n")  # Separate sheets with some space
+
+                # Write the header (column names)
+                # Assumes first row is the header
+                headers = [cell.value for cell in sheet[1]]
+                txtf.write("\t".join([str(header)
+                           for header in headers]) + "\n")
+
+                # Write each row of data
+                # Skip the header row
+                for row in sheet.iter_rows(min_row=2, values_only=True):
+                    row_data = [
+                        str(cell) if cell is not None else '' for cell in row]
+                    txtf.write("\t".join(row_data) + "\n")
+
+                # Add spacing between sheets
+                txtf.write("\n\n")
+
         print(f"Converted Excel {excel_file} to {txt_file}")
+
     except Exception as e:
         print(f"Error converting Excel to TXT: {str(e)}")
 
@@ -101,21 +123,20 @@ def get_attachments_from_eml(basename, eml_file):
                 with open(attachment_path, 'wb') as fp:
                     fp.write(part.get_payload(decode=True))
 
-                # if ext == '.csv' or ext == '.xls' or ext == '.xlsx':
-                #     txt_filename = os.path.splitext(full_filename)[0] + '.txt'
-                #     txt_path = os.path.join(output_dir, txt_filename)
+                if ext == '.xls' or ext == '.xlsx':
+                    txt_filename = os.path.splitext(full_filename)[0] + '.txt'
+                    txt_path = os.path.join(output_dir, txt_filename)
 
-                #     if ext == '.csv':
-                #         csv_to_txt(full_filename, txt_path)
-                #     elif ext in ['.xls', '.xlsx']:
-                #         excel_to_txt(output_dir+"/"+full_filename, txt_path)
+                    if ext in ['.xls', '.xlsx']:
+                        excel_to_txt(output_dir+"/"+full_filename, txt_path)
 
-                #     attachment_paths.append(txt_path)
-                #     print(f"Saved and converted {ext.upper()} to TXT: {txt_path}")
-                # else:
+                    attachment_paths.append(txt_path)
+                    print(
+                        f"Saved and converted {ext.upper()} to TXT: {txt_path}")
+                else:
 
-                attachment_paths.append(attachment_path)
-                print(f"Saved attachment: {attachment_path}")
+                    attachment_paths.append(attachment_path)
+                    print(f"Saved attachment: {attachment_path}")
 
     # Return the list of attachment paths
     return attachment_paths
@@ -165,7 +186,7 @@ def gradio_interface(files):
             basename = os.path.splitext(file_name)[0]
 
             if extension == 'eml':
-                eml_text_path = get_text_from_eml(basename, file.name)
+                # eml_text_path = get_text_from_eml(basename, file.name)
                 eml_files = get_attachments_from_eml(basename, file.name)
 
                 if eml_files:
@@ -179,22 +200,25 @@ def gradio_interface(files):
 
                         # Process each attachment based on its extension
 
-                        if att_extension == 'csv' or att_extension in ['xls', 'xlsx']:
-                            print("hii2")
+                        if att_extension == 'csv':
                             result2 = table_to_json(attachment)
-                            eml_result.append(result2)
+                            
                         elif att_extension == 'png' or att_extension == 'jpeg':
-                            result = process_image_file(attachment)
+                            result2 = process_image_file(attachment)
+                            
                         else:
                             result2 = process_files(eml_files)
-                            eml_result.append(result2)
+                        
+                        eml_result.append(result2)
 
-                result2 = process_files([eml_text_path])
+                # result2 = process_files([eml_text_path])
                 eml_result.append(result2)
                 result = eml_result
-            elif extension == 'csv' or extension in ['xls', 'xlsx']:
-                result = table_to_json(file.name)
 
+            elif extension == 'csv':
+                result = table_to_json(file.name)
+            elif extension in ['xls', 'xlsx']:
+                pass
             elif extension == 'png' or extension == 'jpg' or extension == 'jpeg':
                 result = process_image_file(file.name)
 
