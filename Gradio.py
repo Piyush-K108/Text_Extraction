@@ -186,7 +186,7 @@ def gradio_interface(files):
             basename = os.path.splitext(file_name)[0]
 
             if extension == 'eml':
-                # eml_text_path = get_text_from_eml(basename, file.name)
+                eml_text_path = get_text_from_eml(basename, file.name)
                 eml_files = get_attachments_from_eml(basename, file.name)
 
                 if eml_files:
@@ -211,21 +211,32 @@ def gradio_interface(files):
                         
                         eml_result.append(result2)
 
-                # result2 = process_files([eml_text_path])
+                result2 = process_files([eml_text_path])
                 eml_result.append(result2)
                 result = eml_result
 
             elif extension == 'csv':
                 result = table_to_json(file.name)
+
             elif extension in ['xls', 'xlsx']:
-                pass
+                
+                output_dir = 'attachments/'
+
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                    
+                txt_filename = basename + '.txt'
+                txt_path = os.path.join(output_dir, txt_filename)
+                excel_to_txt(file.name, txt_path)
+                result = process_files([txt_path])
+
             elif extension == 'png' or extension == 'jpg' or extension == 'jpeg':
                 result = process_image_file(file.name)
 
             else:
                 result = process_files(file.name)
-            if result is not None:
 
+            if result is not None:
                 result_json.append(result)
 
     except Exception as e:
