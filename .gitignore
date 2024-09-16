@@ -9,5 +9,8 @@ attachments
 *.txt
 output
 
+output2
+output_json
+output_json2
 
 __pycache__
