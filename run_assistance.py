@@ -111,7 +111,7 @@ def process_files(file_paths):
         print(f'Your thread ID is: {thread.id}\n')
 
         # Send the user message to extract JSON data from the file
-        text = 'Just follow the instructions given'
+        text = "Just follow the instructions given and don't leave any data from the file. Extract everything"
         messages = client.beta.threads.messages.create(
             thread_id=thread.id,
             role='user',
