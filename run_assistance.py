@@ -4,9 +4,17 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 import re
-
+import pytesseract
+import concurrent.futures
+from pytesseract import image_to_string
+from PIL import Image, ImageEnhance, ImageFilter
 import requests
+import concurrent.futures
+from pytesseract import image_to_string
+import os
+from io import BytesIO
 load_dotenv()
+pytesseract.pytesseract.tesseract_cmd = 'tesseract'
 
 
 def json_to_file(json_data, vector_id, thread_id, run_id, output_file='Json_output.json'):
@@ -75,11 +83,12 @@ def save_output_to_txt(output_data, file_path="output/output_file.txt"):
         print(f"Error saving to text file: {str(e)}")
 
 
-def process_files(file_paths):
+def process_files(file_paths):    
+   
     try:
         # Load API key and Assistant ID from environment variables
         openai_key = os.getenv('API_KEY')
-        assistant_id = os.getenv('ASSISTANT_ID3')
+        assistant_id = os.getenv('ASSISTANT_ID')
 
         # Initialize OpenAI client
         client = OpenAI(api_key=openai_key)
@@ -111,19 +120,19 @@ def process_files(file_paths):
         print(f'Your thread ID is: {thread.id}\n')
 
         # Send the user message to extract JSON data from the file
-        text = "Just follow the instructions given and don't leave any data from the file. Extract everything"
+        text = "Just follow the instructions given and extract everything, don't leave any data from the file; preserve the structure of the data and send unique values without adding any duplicate entries"
         messages = client.beta.threads.messages.create(
             thread_id=thread.id,
             role='user',
             content=text,
-            
+
         )
 
         # Poll for the assistant's response
         run = client.beta.threads.runs.create_and_poll(
             thread_id=thread.id,
             assistant_id=assistant_id,
-           
+
         )
         print(f'Your Run object is: {run}\n')
         print(f'Your Run ID is: {run.id}\n')
@@ -136,7 +145,7 @@ def process_files(file_paths):
             print("My Json")
             json = messages[0].content
             json_data = eval(json)
-            
+
             json_data['token_usage'] = {
                 "prompt_tokens": token_usage.prompt_tokens,
                 "completion_tokens": token_usage.completion_tokens,
@@ -147,8 +156,7 @@ def process_files(file_paths):
                          vector_id=vector_store.id, thread_id=thread.id, run_id=run.id)
 
         except Exception as e:
-            print("My Error",e)
-
+            print("My Error", e)
 
         if len(messages) > 0 and len(messages[0].content) > 0:
             messages_content = messages[0].content[0].text
@@ -221,10 +229,9 @@ def message_to_json(messages_content):
     return json_data
 
 
-
 def process_code_file(file_path, file_name):
     openai_key = os.getenv('API_KEY')
-    assistant_id = os.getenv('ASSISTANT_ID3')
+    assistant_id = os.getenv('ASSISTANT_ID')
 
     # Initialize OpenAI client
     client = OpenAI(api_key=openai_key)
@@ -260,69 +267,45 @@ def process_code_file(file_path, file_name):
     return file_id
 
 
-def process_image_file(file_path):
-    print("Hii Image")
-    openai_key = os.getenv('API_KEY')
-    # Initialize OpenAI client
-    client = OpenAI(api_key=openai_key) 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": """
-                    Your goal is to return only the extracted data in JSON format, without adding any extra text, explanations, or words—just the JSON with the following structure:
-                    {
-                        "file_type": "<type_of_file>",
-                        "data": {
-                            "Total_Amount": "<amount>",
-                            "Payment_Date": "<date>",
-                            "Payment_Reference_Number": "<payment_reference_number>",
-                            "Invoice_Number": "<invoice_number>",
-                            "Payment_Currency": "<payment_currency>",
-                            "Partner_details": "<partner_details>",
-                            "Bank_Account_Details": "<bank_account_details>",
-                            "additional_fields": {
-                                "<field_name>": "<value>",
-                                "<field_name>": "<value>"
-                            }
-                        }
-                    }
-                    
-                    Identify the file type: Based on the document's content.
-                    Extract all data: Include everything from the file, formatted as key-value pairs, without excluding any details.
-                    Return only the JSON: No text or comments, just the JSON structure.
-                    """
-                        },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": "https://techfrolic1.sharepoint.com/:i:/s/AI-ML/EQtNS5gZHxpNgD98TNwLBkQBbQJ-HtSwmLXE3ipckmijeQ?e=EcjpeJ",
-                        },
-                    },
-                ],
-            }
-        ],
-        
-        )
-    except Exception as e:
-        print("Error",e)
-        return {"Error":e}
-    print("Response",response)
-    messages_content = response.choices[0]
-    
-
-    try:
-        cleaned_json_string = messages_content.message.content.strip("```json").strip()
-        cleaned_json_string = cleaned_json_string.replace(
-            'null', 'None')
-        json_data = eval(cleaned_json_string)
-
-    except Exception as e:
-        print("Error", e)
-        json_data = message_to_json(messages_content)
+def preprocess_image(image_path):
+    """
+    Preprocess the image to enhance text clarity for better OCR performance.
+    """
+    # Open the image file
+    image = Image.open(image_path)
+    # Convert the image to grayscale
+    image = image.convert('L')
+    # Increase contrast
+    enhancer = ImageEnhance.Contrast(image)
+    image = enhancer.enhance(2)
+    # Sharpen the image
+    image = image.filter(ImageFilter.SHARPEN)
+    return image
 
 
-    return json_data
+def process_image_file(image_path):
+    """
+    Extracts text with layout structure preserved using Tesseract's layout control.
+    """
+    image = preprocess_image(image_path)
+
+    # Use layout-preserving PSM modes in Tesseract (e.g., --psm 4 for column detection)
+    # Try psm 4, psm 6, or psm 12 for structured layouts
+    raw_text = image_to_string(image, lang='eng', config='--psm 4')
+
+    file_name_without_ext = os.path.splitext(os.path.basename(image_path))[0]
+    directory = 'images'
+    output_txt_path = os.path.join(directory, f"{file_name_without_ext}.txt")
+
+    # Create the directory if it does not exist
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    with open(output_txt_path, "w") as f:
+        f.write(raw_text)
+
+    print(f"Extracted text saved to: {output_txt_path}")
+    return output_txt_path
+
+
+

@@ -7,10 +7,12 @@ file_ids.txt
 error_log.txt
 attachments
 *.txt
-output
 
-output2
-output_json
-output_json2
+
+processing_output/
+data_Eteam
+csv_data
 
 __pycache__
+
+out*
